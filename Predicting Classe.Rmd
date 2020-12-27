@@ -1,0 +1,153 @@
+---
+title: "Predicting the Classe"
+author: "Haitam"
+date: "27/12/2020"
+output: html_document
+---
+
+```{r,message=FALSE}
+#packages:
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(randomForest)
+library(rattle)
+```
+
+## Introduction:
+  Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+  In this project, my **goal** will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+##Getting and cleaning data
+```{r}
+#loading and reading data
+#Delete missing values 
+training <- read.csv("pml-training.csv", na.strings=c("NA","#DIV/0!",""))  
+testing <- read.csv("pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+
+#Remove variables with near zero variance
+training<-training[,colSums(is.na(training)) == 0]
+testing <-testing[,colSums(is.na(testing)) == 0]
+
+#Remove columns that are not predictors, which are the the seven first columns
+train   <-training[,-c(1:7)]
+valid<-testing[,-c(1:7)]
+
+#The data after cleaning
+dim(train)
+
+
+
+```
+
+
+## Exploratory data analysis:
+
+```{r}
+#number of missing values:
+paste("There are",sum(is.na(train)),"missing value in our data")
+
+```
+ 
+
+
+```{r}
+str(train$classe)
+#transforming our outcome to a factor
+train$classe<-as.factor(train$classe)
+str(train$classe)
+
+#summary outcome:
+train%>%group_by(classe)%>%summarise(count=n())
+
+#plotting
+ggplot(data=train,aes(x=classe))+geom_bar(fill="lightsteelblue")
+
+```
+
+
+## Cross validation:
+  
+  I will separate the train data to a train and a test data to create a model and test in on the 20 subject in the validation data 
+  
+  In order to get out-of-sample errors, split the training data in training (75%) and testing (25%) data) subsets:
+  
+```{r}
+set.seed(159)
+inTrain<-createDataPartition(y = train$classe,p=0.75,list=F)
+
+training<-train[inTrain,]
+testing<- train[-inTrain,]
+
+dim(training) ; dim(testing)
+```
+  
+##Model Building:
+
+  
+```{r}
+#random forest model
+mod_rf<-randomForest(classe~.,data=training,method="rf")
+mod_rf
+
+
+#prediction:
+pred_rf<-predict(mod_rf,testing)
+
+
+#accuracy:
+
+confusionMatrix(testing$classe,pred_rf)
+```
+  
+  
+```{r}
+#important variables:
+varImpPlot(mod_rf)
+
+```
+  
+  
+```{r}
+#classification tree
+mod_rpart<-train(classe~.,data=training,method="rpart")
+mod_rpart
+
+
+#prediction
+pred_rpart<-predict(mod_rpart,testing)
+
+#accuracy
+confusionMatrix(testing$classe,pred_rpart)
+
+#PLOTTING
+fancyRpartPlot(mod_rpart$finalModel)
+```
+  
+  
+```{r}
+forest<-confusionMatrix(testing$classe,pred_rf)$overall['Accuracy']
+tree<-confusionMatrix(testing$classe,pred_rpart)$overall['Accuracy']
+
+cbind(forest,tree)
+```
+ 
+  So I will work with the **random forest** model
+  
+```{r,echo= FALSE}
+mod_rf
+```
+  
+## Prediting on validation set(20 subjects):
+
+```{r}
+predict(mod_rf,valid)
+```
+
+##Conclusion:
+
+ In this training model I compared **TWO MACHINE LEARNING** methods the random forest and the classification tree and I choose the best accuracy model because i wanted to make prediction on a new data set.
+ 
+  However the training speed for the forest model is slow and its algorithm is not easy to explain but its true power is in the high accuracy.
+ 
+ 
